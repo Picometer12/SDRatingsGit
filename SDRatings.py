@@ -309,7 +309,7 @@ class Script(scripts.Script):
             unratedGroups = gr.Textbox(label="Unrated Groups - used as filter but will not be rated ", value = "")
 
         
-        gr.Markdown("Remove an unwanted tag here after image generation.  ") #add some vertical white space
+        gr.Markdown("(Not functional yet.) Remove an unwanted tag here after image generation.  ") #add some vertical white space
         gr.Markdown(" <br/> ") 
 
         with gr.Row():
