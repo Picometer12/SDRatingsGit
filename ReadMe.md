@@ -1,4 +1,4 @@
-This is unfinished and cobbled together by someone who doesn't know what they're doing. Use at your own risk. I haven't done much data validation yet, so leave batch count and batch size at 1 and type things carefully. 
+This is unfinished and cobbled together by someone who doesn't know what they're doing. Use at your own risk. It currently works well if generation parameters are left at default. I haven't done much data validation yet, so leave batch count and batch size at 1 and type things carefully. There's a lot I don't yet know about Python and how Automatic1111 and gradio work, and the resulting code is egregious, even by my standards.
 
 # Using SDRatings
 
@@ -20,12 +20,17 @@ To use a wildcard, put \_\_NameOfWildCardFile\_\_ into your prompt and a random 
 
 # About Elo Ratings
 
+A higher elo rating is better. With default parameters and a large population, the average rating will be around 1500 and the best of the best (Chess grandmasters and world-class athletes) will be 2600+. I imagine our keyword groups will not be so large that the extremes push out quite so far. 
+
 I used [this article](https://mattmazzola.medium.com/understanding-the-elo-rating-system-264572c7a2b4) for the algorithm and default values for constants.
 
-If the population of keywords were static and we didn't modify the Elo algorithm, the average keyword would be exactly 1500. However, if we introduce new keywords to the population and remove or stop rating the bad ones, 1500 will eventually become the average active keyword. As long as you keep ratings things, the best will be at the top, it might be worth keeping in time that a 2000 might turn into 1800 over time, and a rating that hasn't been bested in a long time may become inaccurate.  
+Something to keep in mind: if we introduce new keywords to the population and remove or stop rating the bad ones, 1500 will eventually become the average active keyword. As long as you keep ratings things, the best will be at the top, but it might be worth keeping in mind that a stale 2000 rating might be equivalent to a recently rated 1800.
 
 # To Do
 - Improve code quality if anyone ever wants to collaborate or contribute
+- More configurability for elo constants, especially to help fresh keywords and tags find their rating. 
+- Let keywords be inserted into negative prompts. 
+- Add more messaging to the user through Automatic1111's interface instead of through cmd line
 - Add a gradio image near the vote buttons. As user generates images using the generate button, add the processed grids to a Queue that will feed into the new gradio image. This way you can generate a large batch of images and then come back and rate them back to back without waiting for images to generate.
 - Add ways to add/remove keywords and groups
 - Change all instances of group/groups to tag/tags, which might be a more intuitive name
@@ -37,5 +42,5 @@ If the population of keywords were static and we didn't modify the Elo algorithm
 - Add a mode for rating a new keyword a large number of times against many keywords that already have mature ratings for rating new keywords quickly
 - Give credit to the right wildcards script and provide a link. Or upgrade to the newest one if it has more functionality.
 - Think about case where one group's is a subset of another group's name
-
-
+- Output a csv with keywords and tags that can be sorted and/or maybe just a sorted txt file with one keyword + 1 tag
+- Think about how to incorporate batch count/sizes if at all. Could at least use batch sizes to speed up generation. 
