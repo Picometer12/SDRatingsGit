@@ -16,7 +16,7 @@ AristList.xlsx is an excel spreadsheet that I used to help populate SDRatings.tx
 
 
 # Compatible with wildcards script
-To use a wildcard, put \__NameOfWildCardFile__\ into your prompt and a random line from NameOfWildCardFile.txt in wildcards folder will be substituted.
+To use a wildcard, put \_\_NameOfWildCardFile\_\_ into your prompt and a random line from NameOfWildCardFile.txt in wildcards folder will be substituted.
 
 # About Elo Ratings
 
