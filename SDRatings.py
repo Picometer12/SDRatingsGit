@@ -13,11 +13,14 @@ from modules.shared import opts, cmd_opts, state
 import modules.sd_samplers
 
 # is there a better way to do this?
+#Now everything is packed into Contest class
 #group = "defaultgroup"
-groups = ["defaultGroupList"]
+#groups = ["defaultGroupList"]
 
-keyword1 = "defaulta"
-keyword2 = "defaultb"
+#keyword1 = "defaulta"
+#keyword2 = "defaultb"
+
+#Still needed for making a queue 
 keywordList = []
 
 state = "noComparison" #can be noComparison, ready, rated, errorGenerating
@@ -28,9 +31,15 @@ eloScale = 32 #used in elo algorithm. This is the max change in elo rating.
 useNewcomerEloMultiplier = True
 
 #used in displaying the images that need to be rated, separate from generation image area
-#imagesToRate = []
-#ratingImageUI = 
+imagesToRate = [] #move this into contest?
+contestList = []
 
+#Generation and voting will not occur together. Pack all information that we need to vote into each Contest.
+class Contest():
+    def __init__(self, keywords, contestGroups, grid):
+        self.keywords = keywords
+        self.contestGroups = contestGroups
+        self.grid = grid
 
 
 def draw_xy_grid(xs, ys, x_label, y_label, cell):
@@ -66,12 +75,13 @@ def draw_xy_grid(xs, ys, x_label, y_label, cell):
 
 #Gradio doesnt like it when I pass strings using button click inputs, so we're doing it this way
 def voteLeft():
-    global state
+    global state, contestList
 
     #Todo make the error  messages readable within gradio app
     if state == "ready":
         ratingAdjust("left")
         state = "rated"
+        contestList.pop(0)
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
     elif state == "rated":
@@ -80,11 +90,12 @@ def voteLeft():
         raise gr.Error("Bad Developer. Variable state should only take values of noComparison, ready, or rated")
 
 def voteRight():
-    global state
+    global state, contestList
     
     if state == "ready":
         ratingAdjust("right")
         state = "rated"
+        contestList.pop(0)
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
     elif state == "rated":
@@ -93,11 +104,22 @@ def voteRight():
         raise gr.Error("Bad Developer. Variable state should only take values of noComparison, ready, or rated")
 
 def doOver():
-    global state, keywordList
-    #keywordList.insert(0, keyword2)
-    #keywordList.insert(0, keyword1)
-    state = "noComparison"
-    #Todo: figure out how to generate from button push
+    contestList.pop(0)
+    #Todo: find a way to call on generate and send the outome to the front? 
+    #For now just skip without rating
+
+
+#This is supposed to help me get images after I click next image button
+def getImageforUI():
+    #do I even need to put anything here?
+    #if my method fails, have this return imagesToRate[0]
+    global state
+    if len(contestList) > 0:
+        state = "ready"
+        return contestList[0].grid
+    else:
+        raise gr.Error("No images in queue. Try generating images or maybe something has gone wrong.")
+    
 
 #def updateRatingImageUI():
 #    ratingImageUI.value = imagesToRate[0]
@@ -106,7 +128,7 @@ def doOver():
 def ratingAdjust(txtWinner):
     print(txtWinner + " wins")
     
-    global keywordList
+    #global keywordList
 
     #could do all groups at once, but I've already written this for one so let's just reuse it
     def getElo(keyword, group):
@@ -194,28 +216,26 @@ def ratingAdjust(txtWinner):
     newElos2 = []
     eloMultipliers1 = []
     eloMultipliers2 = []
-    #eloScales = []
 
-    #constants for elo algorithm. Todo: make this configurable, or scale with number of comparisons
-    differenceParam = 400 #elo guide recommends 400. Figure out what this actually means -- does this mean that a 400 pt difference means something
-    #eloScale = 32 #this is now global and configurable
+    differenceParam = 400 #elo guide recommends 400. Figure out an intuitive explanation for this constant
+    
 
     if txtWinner == "left":
         winLeftBinary = 1
-        print(keyword1 + " wins")
+        print(contestList[0].keywords[0] + " wins")
     elif txtWinner == "right":
         winLeftBinary = 0
-        print(keyword2 + " wins")
+        print(contestList[0].keywords[1] + " wins")
     else:
         #Todo throw a proper error message into automatic1111
         print("txtWinner should be left or right")
 
     i = 0
-    for group in groups:
+    for group in contestList[0].contestGroups:
         #get elo returns can return "Artist" or "Artist:1"
         
-        eloRatingChunks1.append(getElo(keyword1, group).split(":"))
-        eloRatingChunks2.append(getElo(keyword2, group).split(":"))
+        eloRatingChunks1.append(getElo(contestList[0].keywords[0], group).split(":"))
+        eloRatingChunks2.append(getElo(contestList[0].keywords[1], group).split(":"))
 
         originalElos1.append(int(eloRatingChunks1[i][0]))
         originalElos2.append(int(eloRatingChunks2[i][0]))
@@ -246,21 +266,15 @@ def ratingAdjust(txtWinner):
         timesRated1[i] += 1
         timesRated2[i] += 1
 
-        setElo(keyword1, group, newElos1[i], timesRated1[i])
-        setElo(keyword2, group, newElos2[i], timesRated2[i])
+        setElo(contestList[0].keywords[0], group, newElos1[i], timesRated1[i])
+        setElo(contestList[0].keywords[1], group, newElos2[i], timesRated2[i])
 
-        print(keyword1 + ":" + group + " changed from " + str(originalElos1[i]) + " to " + str(newElos1[i])) 
-        print(keyword2 + ":" + group + " changed from " + str(originalElos2[i]) + " to " + str(newElos2[i]))
+        print(contestList[0].keywords[0] + ":" + group + " changed from " + str(originalElos1[i]) + " to " + str(newElos1[i])) 
+        print(contestList[0].keywords[1] + ":" + group + " changed from " + str(originalElos2[i]) + " to " + str(newElos2[i]))
         
 
         i += 1
     
-    #get rid of the first two elements
-    keywordList.pop(0)
-    keywordList.pop(0)
-
-
-
 
 
 class Script(scripts.Script):
@@ -276,19 +290,18 @@ class Script(scripts.Script):
             left_wins = gr.Button(value = "Vote Left")
             cant_decide = gr.Button(value = "Can't Decide") #probably can just take this out since we can just generate again
             right_wins = gr.Button(value = "Vote Right")
+            #uncommenting this yields "run() missing 5 positional arguments...."
+            next_image = gr.Button(value = "Next Image in Queue")
+
+        ratingImageUI = gr.Image()
 
         left_wins.click(voteLeft)
         cant_decide.click(doOver)
         right_wins.click(voteRight)
+        next_image.click(fn = getImageforUI, outputs = ratingImageUI )
         
-        #if len(imagesToRate) > 0:
-        #    ratingImageUI = gr.Image(value = imagesToRate[0])
-        #else:
-        #    ratingImageUI = gr.Image()
 
-        #Todo: figure out how to make a separate image window for displaying grids to be rated
-
-        #ratingImageUI = gr.Image()
+        
         #ratingImageUI.change(updateRatingImageUI)
 
         gr.Markdown(" <br/> ") #add some vertical white space
@@ -356,18 +369,21 @@ class Script(scripts.Script):
     def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput):
         modules.processing.fix_seed(p)
 
-        global groups, state, eloScale, newcomeEloMultiplier
+        #global groups, state, eloScale, newcomeEloMultiplier
+        global state, eloScale, useNewcomerEloMultiplier
 
         groups = keywordGroups.split(",")
         unratedGroupList = unratedGroups.split(",")
         eloScale = int(eloScaleInput)
         useNewcomerEloMultiplier = useNewcomerEloMultiplierInput
 
-        for group in groups:
-            group = group.strip()
 
-        for group in unratedGroupList:
-            group = group.strip()
+        for i in range(len(groups)):
+            groups[i] = groups[i].strip()
+
+
+        for i in range(len(unratedGroupList)):
+            unratedGroupList[i] = unratedGroupList[i].strip()
         
         def replace_wildcard(chunk):
             if " " not in chunk:
@@ -412,9 +428,8 @@ class Script(scripts.Script):
         #prompt_matrix_parts = original_prompt.split("|")
         #combination_count = 2 ** (len(prompt_matrix_parts) - 1)
 
-        global keyword1, keyword2, keywordList
-        #global imagesToRate
-        global oldInputs
+        #global keyword1, keyword2, keywordList
+        global keywordList, oldInputs
         
         #determine if settings have changed, record these settings to compare next time
         if oldInputs[0] == keywordGroups and oldInputs[1] == unratedGroups:
@@ -428,11 +443,8 @@ class Script(scripts.Script):
         
 
         if len(keywordList) < 2 or newSettings:
-            print("New Keywords!")
             keywordList = populateKeywordList()
-            if len(keywordList) < 2:
-                #state = "errorGenerating"
-                
+            if len(keywordList) < 2:               
                 keyword1 = "defaulta"
                 keyword2 = "defaultb"
                 raise gr.Error("There aren't two or more keywords with the group")
@@ -442,8 +454,8 @@ class Script(scripts.Script):
         #keyword1 = keywordList.pop()
         #keyword2 = keywordList.pop()
 
-        keyword1 = keywordList[0]
-        keyword2 = keywordList[1]
+        #keyword1 = keywordList[0]
+        #keyword2 = keywordList[1]
 
         #from wildcards
         #all_prompts = ["".join(replace_wildcard(chunk) for chunk in original_prompt.split("__")) for _ in range(p.batch_size * p.n_iter)]
@@ -454,12 +466,12 @@ class Script(scripts.Script):
 
         for i in range(number_of_comparisons):
             #selected_prompts = original_prompt.replace("keyword", keyword1)
-            selected_prompts = wildcardPrompt.replace("keyword", keyword1)
+            selected_prompts = wildcardPrompt.replace("keyword", keywordList[0])
             all_prompts.append(selected_prompts)
 
 
             #selected_prompts = original_prompt.replace("keyword", keyword2)
-            selected_prompts = wildcardPrompt.replace("keyword", keyword2)
+            selected_prompts = wildcardPrompt.replace("keyword", keywordList[1])
             all_prompts.append(selected_prompts)
 
        #Todo: check if metadata is not correct due to either my logic or wildcard logic 
@@ -487,6 +499,7 @@ class Script(scripts.Script):
         processed.images.insert(0, grid)
 
         #Todo: add grids to a queue so they can be rated in a separate image window
+        #global imagesToRate
         #imagesToRate.append(grid)
         #ratingImageUI.value = imagesToRate[0]
         #processed.images.insert(1, grid)
@@ -495,6 +508,12 @@ class Script(scripts.Script):
         #processed.infotexts.insert(1, processed.infotexts[0])
 
         #Todo add checks to make sure an image propertly displayed
+
+        #Package all info into to be voted on later
+        global contestList
+        contestList.append(Contest(keywordList[0:2], groups, grid))
+        keywordList.pop(0)
+        keywordList.pop(0)
 
         
         state = "ready" #allows rating buttons to work
