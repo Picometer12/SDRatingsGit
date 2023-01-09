@@ -102,7 +102,17 @@ def doOver():
 
     if state == "ready":
         state = "rated"
+        leftMessage = contestList[0].keywords[0] + " draws. "
+        rightMessage = contestList[0].keywords[1] + " draws. "
+        
+        for group in contestList[0].contestGroups:
+            #leftMessage += f"{group}: {getElo(contestList[0].keywords[0], group).split(":")[0] } , "
+            leftMessage += group + ": " + getElo(contestList[0].keywords[0], group).split(":")[0] +", "
+            rightMessage += group + ": " + getElo(contestList[0].keywords[1], group).split(":")[0] +", "
+
         contestList.pop(0)
+        return [leftMessage, rightMessage]
+        
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
     elif state == "rated":
@@ -121,36 +131,38 @@ def getImageforUI():
         return contestList[0].grid
     else:
         raise gr.Error("No images in queue. Try generating images or maybe something has gone wrong.")
-    
+ 
+    #Moved from ratingAdjust -- shouldn't be a problem?
+#could do all groups at once, but I've already written this for one so let's just call it multiple times
+def getElo(keyword, group):
+    file_dir = os.path.dirname(os.path.realpath("__file__"))
+    read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
+    if os.path.exists(read_file):
+        with open(read_file, 'r') as f:
+                
+            #if a line contains group, return keyword from format keyword(group1:1500, group2:1500,...)
+            #if two colons between commas, second number is number of ratings. keyword(group1:1500:2)
+            for line in f.read().strip().splitlines():  
+                #remove the ending parentheses
+                line = line[:-1]
+                if keyword in line:
+                    groupString = line.split("(")[1]
+                    groupList = groupString.split(",")
+                        
+                    #data is in the form groupName:1500 or groupName:1500:2
+                    for grp in groupList:
+                        if group in grp:
+                            return grp.split(":",1)[1]
+
+            f.close()
+    #if we get to this point, there's a problem
+    raise gr.Error("getEloNew didnt find the group within the keyword")
+    return 0
 
 def ratingAdjust(txtWinner):
     print(txtWinner + " wins")
 
-    #could do all groups at once, but I've already written this for one so let's just call it multiple times
-    def getElo(keyword, group):
-        file_dir = os.path.dirname(os.path.realpath("__file__"))
-        read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
-        if os.path.exists(read_file):
-            with open(read_file, 'r') as f:
-                
-                #if a line contains group, return keyword from format keyword(group1:1500, group2:1500,...)
-                #if two colons between commas, second number is number of ratings. keyword(group1:1500:2)
-                for line in f.read().strip().splitlines():  
-                    #remove the ending parentheses
-                    line = line[:-1]
-                    if keyword in line:
-                        groupString = line.split("(")[1]
-                        groupList = groupString.split(",")
-                        
-                        #data is in the form groupName:1500 or groupName:1500:2
-                        for grp in groupList:
-                            if group in grp:
-                                return grp.split(":",1)[1]
-
-                f.close()
-        #if we get to this point, there's a problem
-        raise gr.Error("getEloNew didnt find the group within the keyword")
-        return 0
+    
 
 
     #Todo: If this is slow, try to save something in the getElo method that will help us SetElo faster
@@ -268,8 +280,8 @@ def ratingAdjust(txtWinner):
         setElo(contestList[0].keywords[1], group, newElos2[i], timesRated2[i])
 
         
-        print(contestList[0].keywords[0] + ":" + group + " changed from " + str(originalElos1[i]) + " to " + str(newElos1[i])) 
-        print(contestList[0].keywords[1] + ":" + group + " changed from " + str(originalElos2[i]) + " to " + str(newElos2[i]))
+        #print(contestList[0].keywords[0] + ":" + group + " changed from " + str(originalElos1[i]) + " to " + str(newElos1[i])) 
+        #print(contestList[0].keywords[1] + ":" + group + " changed from " + str(originalElos2[i]) + " to " + str(newElos2[i]))
 
         leftResult += f"{group}: {str(originalElos1[i])} to {str(newElos1[i])} ({str(newElos1[i] - originalElos1[i])}), "
         rightResult += f"{group}: {str(originalElos2[i])} to {str(newElos2[i])} ({str(newElos2[i] - originalElos2[i])}), "
@@ -303,7 +315,7 @@ class Script(scripts.Script):
         ratingImageUI = gr.Image()
 
         left_wins.click(voteLeft, outputs = [leftResultsTextUI, rightResultsTextUI])
-        cant_decide.click(doOver)
+        cant_decide.click(doOver, outputs = [leftResultsTextUI, rightResultsTextUI])
         right_wins.click(voteRight, outputs = [leftResultsTextUI, rightResultsTextUI])
         next_image.click(fn = getImageforUI, outputs = ratingImageUI )
 
