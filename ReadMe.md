@@ -1,9 +1,7 @@
 # Most recent updates
 I'm not going to put much effort into updating the readme until I'm further along or I notice others are using this or wanting to collaborate. Anything below this section hasn't been updated, but here are the big changes: after generating (you can use batch size > 1 now), the images will go into a queue. Click Next Image in Queue button to see the first image in the Queue on the left side of the screen and then rate it by clicking Vote Left, Can't Decide, or Vote Right. Then click next image in queue to view the next image and repeat. You can also make consecutive generations and they will correctly go into the queue. I haven't tested this on other monitors or with image sizes larger than 512x512 -- not sure if Gradio could misbehave under different parameters.
 
-
-
-This is unfinished and cobbled together by someone who doesn't know what they're doing. Use at your own risk. It currently works well if generation parameters are left at default. I haven't done much data validation yet, so leave batch count and batch size at 1 and type things carefully. There's a lot I don't yet know about Python and how Automatic1111 and gradio work, and the resulting code is egregious, even by my standards.
+This is unfinished and cobbled together by someone who doesn't know what they're doing, though the basic functionality should be working as intended. Use at your own risk. If anything breaks, you should be able to reset by going to the extensions tab and then clicking Apply and restart UI. 
 
 # Using SDRatings
 
