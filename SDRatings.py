@@ -71,13 +71,14 @@ def voteLeft():
 
     #Todo make the error messages readable within gradio
     if state == "ready":
-        ratingAdjust("left")
+        results = ratingAdjust("left")
         state = "rated"
         contestList.pop(0)
+        return results
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
     elif state == "rated":
-        raise gr.Error("Already rated, generate new images first.")
+        raise gr.Error("Already rated or couldn't decide, generate new images first.")
     else:
         raise gr.Error("Bad Developer. Variable state should only take values of noComparison, ready, or rated")
 
@@ -85,18 +86,30 @@ def voteRight():
     global state, contestList
     
     if state == "ready":
-        ratingAdjust("right")
+        results = ratingAdjust("right")
+        state = "rated"
+        contestList.pop(0)
+        return results
+    elif state == "noComparison":
+        raise gr.Error("Nothing to rate, generate images first")
+    elif state == "rated":
+        raise gr.Error("Already rated or couldn't decide, generate new images first.")
+    else:
+        raise gr.Error("Bad Developer. Variable state should only take values of noComparison, ready, or rated")
+
+def doOver():
+    global state, contestList
+
+    if state == "ready":
         state = "rated"
         contestList.pop(0)
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
     elif state == "rated":
-        raise gr.Error("Already rated, generate new images first.")
+        raise gr.Error("Already rated or couldn't decide, generate new images first.")
     else:
         raise gr.Error("Bad Developer. Variable state should only take values of noComparison, ready, or rated")
-
-def doOver():
-    contestList.pop(0)
+        
     #Todo: find a way to call on generate and send the outcome to the front? 
     #For now just skip without rating
 
@@ -200,12 +213,19 @@ def ratingAdjust(txtWinner):
 
     differenceParam = 400 #elo guide recommends 400. Figure out an intuitive explanation for this constant
 
+    leftResult = ""
+    rightResult = ""
+
     if txtWinner == "left":
         winLeftBinary = 1
-        print(contestList[0].keywords[0] + " wins")
+        #print(contestList[0].keywords[0] + " wins")
+        leftResult += f"{contestList[0].keywords[0]} wins. "
+        rightResult += f"{contestList[0].keywords[1]} loses. "
     elif txtWinner == "right":
         winLeftBinary = 0
-        print(contestList[0].keywords[1] + " wins")
+        #print(contestList[0].keywords[1] + " wins")
+        leftResult += f"{contestList[0].keywords[0]} loses: "
+        rightResult += f"{contestList[0].keywords[1]} wins: "
     else:
         #Todo throw a proper error message into automatic1111
         print("txtWinner should be left or right")
@@ -247,11 +267,16 @@ def ratingAdjust(txtWinner):
         setElo(contestList[0].keywords[0], group, newElos1[i], timesRated1[i])
         setElo(contestList[0].keywords[1], group, newElos2[i], timesRated2[i])
 
+        
         print(contestList[0].keywords[0] + ":" + group + " changed from " + str(originalElos1[i]) + " to " + str(newElos1[i])) 
         print(contestList[0].keywords[1] + ":" + group + " changed from " + str(originalElos2[i]) + " to " + str(newElos2[i]))
+
+        leftResult += f"{group}: {str(originalElos1[i])} to {str(newElos1[i])} ({str(newElos1[i] - originalElos1[i])}), "
+        rightResult += f"{group}: {str(originalElos2[i])} to {str(newElos2[i])} ({str(newElos2[i] - originalElos2[i])}), "
         
 
         i += 1
+    return [leftResult, rightResult]
     
 
 class Script(scripts.Script):
@@ -267,11 +292,19 @@ class Script(scripts.Script):
             right_wins = gr.Button(value = "Vote Right")
             next_image = gr.Button(value = "Next Image in Queue")
 
+        gr.Markdown(" <br/> ") 
+
+        with gr.Row():
+            leftResultsTextUI = gr.Textbox(label="Left Result ", value = "")
+            rightResultsTextUI = gr.Textbox(label="Right Result ", value = "")
+            
+            
+
         ratingImageUI = gr.Image()
 
-        left_wins.click(voteLeft)
+        left_wins.click(voteLeft, outputs = [leftResultsTextUI, rightResultsTextUI])
         cant_decide.click(doOver)
-        right_wins.click(voteRight)
+        right_wins.click(voteRight, outputs = [leftResultsTextUI, rightResultsTextUI])
         next_image.click(fn = getImageforUI, outputs = ratingImageUI )
 
         gr.Markdown(" <br/> ") #add some vertical white space
