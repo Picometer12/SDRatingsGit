@@ -12,15 +12,6 @@ from modules.processing import process_images, Processed
 from modules.shared import opts, cmd_opts, state
 import modules.sd_samplers
 
-# is there a better way to do this?
-#Now everything is packed into Contest class
-#group = "defaultgroup"
-#groups = ["defaultGroupList"]
-
-#keyword1 = "defaulta"
-#keyword2 = "defaultb"
-
-#Still needed for making a queue 
 keywordList = []
 
 state = "noComparison" #can be noComparison, ready, rated, errorGenerating
@@ -31,7 +22,7 @@ eloScale = 32 #used in elo algorithm. This is the max change in elo rating.
 useNewcomerEloMultiplier = True
 
 #used in displaying the images that need to be rated, separate from generation image area
-imagesToRate = [] #move this into contest?
+#imagesToRate = [] #move this into contest?
 contestList = []
 
 #Generation and voting will not occur together. Pack all information that we need to vote into each Contest.
@@ -43,6 +34,8 @@ class Contest():
 
 
 def draw_xy_grid(xs, ys, x_label, y_label, cell):
+    # I may have messed this up in a way that's not bothering me righ now
+    # Probably copied from wildcards or xymatrix, figure out where this come from if it ever needs to be repaired
     res = []
 
     ver_texts = [[images.GridAnnotation(y_label(y))] for y in ys]
@@ -64,7 +57,6 @@ def draw_xy_grid(xs, ys, x_label, y_label, cell):
             res.append(processed.images[0])
 
     grid = images.image_grid(res, rows=len(ys))
-    #grid = images.draw_grid_annotations(grid, res[0].width, res[0].height, hor_texts, ver_texts)
     grid = images.draw_grid_annotations(grid, res[0].width, res[0].height, hor_texts, ver_texts)
     
 
@@ -77,7 +69,7 @@ def draw_xy_grid(xs, ys, x_label, y_label, cell):
 def voteLeft():
     global state, contestList
 
-    #Todo make the error  messages readable within gradio app
+    #Todo make the error messages readable within gradio
     if state == "ready":
         ratingAdjust("left")
         state = "rated"
@@ -105,14 +97,11 @@ def voteRight():
 
 def doOver():
     contestList.pop(0)
-    #Todo: find a way to call on generate and send the outome to the front? 
+    #Todo: find a way to call on generate and send the outcome to the front? 
     #For now just skip without rating
 
 
-#This is supposed to help me get images after I click next image button
 def getImageforUI():
-    #do I even need to put anything here?
-    #if my method fails, have this return imagesToRate[0]
     global state
     if len(contestList) > 0:
         state = "ready"
@@ -121,16 +110,10 @@ def getImageforUI():
         raise gr.Error("No images in queue. Try generating images or maybe something has gone wrong.")
     
 
-#def updateRatingImageUI():
-#    ratingImageUI.value = imagesToRate[0]
-
-
 def ratingAdjust(txtWinner):
     print(txtWinner + " wins")
-    
-    #global keywordList
 
-    #could do all groups at once, but I've already written this for one so let's just reuse it
+    #could do all groups at once, but I've already written this for one so let's just call it multiple times
     def getElo(keyword, group):
         file_dir = os.path.dirname(os.path.realpath("__file__"))
         read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
@@ -157,10 +140,8 @@ def ratingAdjust(txtWinner):
         return 0
 
 
-
-
-        #Todo: If this is slow, try to save something in the getElo method that will help us SetElo faster
-        #I'm guessing this sort of thing is not slow on this scale
+    #Todo: If this is slow, try to save something in the getElo method that will help us SetElo faster
+    #I'm guessing this sort of thing is not slow on this scale
 
     def setElo(keyword, group, newElo, timesRated):
         file_dir = os.path.dirname(os.path.realpath("__file__"))
@@ -218,7 +199,6 @@ def ratingAdjust(txtWinner):
     eloMultipliers2 = []
 
     differenceParam = 400 #elo guide recommends 400. Figure out an intuitive explanation for this constant
-    
 
     if txtWinner == "left":
         winLeftBinary = 1
@@ -232,7 +212,7 @@ def ratingAdjust(txtWinner):
 
     i = 0
     for group in contestList[0].contestGroups:
-        #get elo returns can return "Artist" or "Artist:1"
+        #get elo returns in format "keyword" or "keyword:1"
         
         eloRatingChunks1.append(getElo(contestList[0].keywords[0], group).split(":"))
         eloRatingChunks2.append(getElo(contestList[0].keywords[1], group).split(":"))
@@ -256,8 +236,6 @@ def ratingAdjust(txtWinner):
             eloMultipliers1.append(max(1,int (5.5 - 0.5*timesRated1[i])))
             eloMultipliers2.append(max(1,int (5.5 - 0.5*timesRated1[i])))
 
-
-
         expectedLeftWinProb.append( 1/(1 + pow(10, (originalElos2[i] - originalElos1[i])/differenceParam)))
 
         newElos1.append(round(originalElos1[i] + eloScale*eloMultipliers1[i]*(winLeftBinary - expectedLeftWinProb[i])))
@@ -276,21 +254,17 @@ def ratingAdjust(txtWinner):
         i += 1
     
 
-
 class Script(scripts.Script):
     def title(self):
         return "SDRatings"
 
     def ui(self, is_img2img):
         
-        #global ratingImageUI
-
         gr.Markdown(" Vote for the left or right keyword after image generation") #add some vertical white space
         with gr.Row():
             left_wins = gr.Button(value = "Vote Left")
-            cant_decide = gr.Button(value = "Can't Decide") #probably can just take this out since we can just generate again
+            cant_decide = gr.Button(value = "Can't Decide")
             right_wins = gr.Button(value = "Vote Right")
-            #uncommenting this yields "run() missing 5 positional arguments...."
             next_image = gr.Button(value = "Next Image in Queue")
 
         ratingImageUI = gr.Image()
@@ -299,20 +273,8 @@ class Script(scripts.Script):
         cant_decide.click(doOver)
         right_wins.click(voteRight)
         next_image.click(fn = getImageforUI, outputs = ratingImageUI )
-        
-
-        
-        #ratingImageUI.change(updateRatingImageUI)
 
         gr.Markdown(" <br/> ") #add some vertical white space
-
-        
-
-        #Todo: get rid of this without breaking
-        
-        #put_at_start = gr.Checkbox(label='Put variable parts at start of prompt', value=False)
-        #number_of_comparisons = gr.Number(label="Number of Images per keyword (integer)", value = 3, precision = 0)
-        #Todo: make this a number, but I couldn't get it to work
         
         gr.Markdown("Fill this out before image generation. ") #add some vertical white space
         gr.Markdown(" <br/> ") 
@@ -325,35 +287,11 @@ class Script(scripts.Script):
         gr.Markdown("(Not functional yet.) Remove an unwanted tag here after image generation.  ") #add some vertical white space
         gr.Markdown(" <br/> ") 
 
+        #Todo: Not functioning yet
         with gr.Row():
             removeTagInput = gr.Textbox(label="Name of tag to be removed")
             removeTagLeftButton = gr.Button(value = "Remove from left keyword")
             removeTagRightButton = gr.Button(value = "Remove from right keyword")
-        
-
-        #left_wins.click(voteLeft)
-        #cant_decide.click(doOver)
-        #right_wins.click(voteRight)
-
-        #with gr.Row():
-            #addRemoveDropdownSelection = gr.Dropdown(label="Add or Remove tags", choices=["add", "remove"], value= "add", type="value", interactive = True)
-            #type index returns index of choice selected. Type value returns string.
-            #tagDropdownSelection = gr.Dropdown(label="Tags", choices=[groups], type="index")
-            #tagDropdownSelection = gr.Dropdown(label="Choose keywords", choices=["add", "remove"], value=current_axis_options[1].label, type="index", elem_id=self.elem_id("x_type"))
-            #x_values = gr.Textbox(label="X values", lines=1, elem_id=self.elem_id("x_values"))
-
-        #with gr.Row():
-        #    x_type = gr.Dropdown(label="X type", choices=[x.label for x in current_axis_options], value=current_axis_options[1].label, type="index", elem_id=self.elem_id("x_type"))
-        #    x_values = gr.Textbox(label="X values", lines=1, elem_id=self.elem_id("x_values"))
-        
-        
-        #left_wins = gr.Button(value = "Vote Left")
-        #cant_decide = gr.Button(value = "Can't Decide") #probably can just take this out since we can just generate again
-        #right_wins = gr.Button(value = "Vote Right")
-
-        #left_wins.click(voteLeft)
-        #cant_decide.click(doOver)
-        #right_wins.click(voteRight)
 
         gr.Markdown("Miscellaneous Settings ") #add some vertical white space
         gr.Markdown(" <br/> ") 
@@ -369,7 +307,6 @@ class Script(scripts.Script):
     def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput):
         modules.processing.fix_seed(p)
 
-        #global groups, state, eloScale, newcomeEloMultiplier
         global state, eloScale, useNewcomerEloMultiplier
 
         groups = keywordGroups.split(",")
@@ -422,12 +359,6 @@ class Script(scripts.Script):
         #Don't know why I was having issues with Number instead of textbox, my workaround
         number_of_comparisons = int(number_of_comparisons)
 
-        original_prompt = p.prompt[0] if type(p.prompt) == list else p.prompt
-
-        all_prompts = []
-        #prompt_matrix_parts = original_prompt.split("|")
-        #combination_count = 2 ** (len(prompt_matrix_parts) - 1)
-
         #global keyword1, keyword2, keywordList
         global keywordList, oldInputs
         
@@ -439,83 +370,66 @@ class Script(scripts.Script):
 
         oldInputs = [keywordGroups, unratedGroups]
 
-        #Repopulate keyword queue if settings have changed or there aren't enough in the list
-        
-
-        if len(keywordList) < 2 or newSettings:
+        #Todo: Change logic and move into the for loop so that you can loop around if batch count is high
+        #Todo: do something here if you ever use batch size
+        if len(keywordList) < 2 * p.n_iter or newSettings:
             keywordList = populateKeywordList()
             if len(keywordList) < 2:               
-                keyword1 = "defaulta"
-                keyword2 = "defaultb"
+                #keyword1 = "defaulta"
+                #keyword2 = "defaultb"
                 raise gr.Error("There aren't two or more keywords with the group")
+
+        original_prompt = p.prompt[0] if type(p.prompt) == list else p.prompt
+
+        #Todo: figure out what to do with batch size if anything
+        wildcard_prompts = ["".join(replace_wildcard(chunk) for chunk in original_prompt.split("__")) for _ in range(p.n_iter * number_of_comparisons)]
+
+        all_prompts = []
+
+        for i in range(len(wildcard_prompts)):
+            all_prompts.append(wildcard_prompts[i].replace("keyword", keywordList[2 * (i // number_of_comparisons)]))
+            all_prompts.append(wildcard_prompts[i].replace("keyword", keywordList[2 * (i // number_of_comparisons) + 1]))
         
         #Todo: do something if data is not valid
-
-        #keyword1 = keywordList.pop()
-        #keyword2 = keywordList.pop()
-
-        #keyword1 = keywordList[0]
-        #keyword2 = keywordList[1]
-
-        #from wildcards
-        #all_prompts = ["".join(replace_wildcard(chunk) for chunk in original_prompt.split("__")) for _ in range(p.batch_size * p.n_iter)]
-
-        #modified for my script -- Todo think about how to handle anything besides batch size = 1
-        #I only need one wildcard prompt for now
-        wildcardPrompt = "".join(replace_wildcard(chunk) for chunk in original_prompt.split("__"))
-
-        for i in range(number_of_comparisons):
-            #selected_prompts = original_prompt.replace("keyword", keyword1)
-            selected_prompts = wildcardPrompt.replace("keyword", keywordList[0])
-            all_prompts.append(selected_prompts)
-
-
-            #selected_prompts = original_prompt.replace("keyword", keyword2)
-            selected_prompts = wildcardPrompt.replace("keyword", keywordList[1])
-            all_prompts.append(selected_prompts)
-
-       #Todo: check if metadata is not correct due to either my logic or wildcard logic 
-        
-
 
         p.n_iter = math.ceil(len(all_prompts) / p.batch_size)
         p.do_not_save_grid = True
 
-        # print(f"Prompt matrix will create {len(all_prompts)} images using a total of {p.n_iter} batches.")
-
+        print("all_prompts length : " + str(len(all_prompts)))
         p.prompt = all_prompts
-        #p.seed = [p.seed + (i if different_seeds else 0) for i in range(len(all_prompts))]
         p.seed = [p.seed + (i / 2) for i in range(len(all_prompts))]
         p.prompt_for_display = original_prompt
         processed = process_images(p)
+        print("Length of Processed:.images " + str(len(processed.images)))
+
+        global contestList
 
         # grid = images.image_grid(processed.images, p.batch_size, rows=1 << ((len(prompt_matrix_parts) - 1) // 2))
         # grid = images.draw_prompt_matrix(grid, p.width, p.height, prompt_matrix_parts)
-        grid = images.image_grid(processed.images, p.batch_size, rows=number_of_comparisons)
+        #print ("Length of all_prompts" + strlen(all_prompts))
+        for i in all_prompts:
+            print(i)
+      
+        for i in range(len(all_prompts) // 2 // number_of_comparisons):
+            #the strange seeming +i are due to ineserting near the start every loop and making one longer
+            grid = images.image_grid(processed.images[i * 6 + i : i * 6 + 6 + i ], p.batch_size, rows=number_of_comparisons)
+            
+            processed.images.insert(i, grid) #Package all info into to be voted on later
+            
+            #To do: put in "(vs keywordList[1]) or something like that in the info text?
+            processed.infotexts.insert(i, processed.infotexts[6*i + i ]) 
+            contestList.append(Contest(keywordList[0:2], groups, grid))
+            keywordList.pop(0)
+            keywordList.pop(0)
 
-        #Todo get labels to behave
+        processed.index_of_first_image = i
+
+        #Todo get labels to behave -- or maybe not, so ratings are unbiased. Could add check box
         #grid = images.draw_prompt_matrix(grid, p.width, p.height, all_prompts)
         #grid = images.draw_prompt_matrix(grid, p.width, p.height, all_prompts[0:2])
-        processed.images.insert(0, grid)
-
-        #Todo: add grids to a queue so they can be rated in a separate image window
-        #global imagesToRate
-        #imagesToRate.append(grid)
-        #ratingImageUI.value = imagesToRate[0]
-        #processed.images.insert(1, grid)
-        processed.index_of_first_image = 1
-        processed.infotexts.insert(0, processed.infotexts[0])
-        #processed.infotexts.insert(1, processed.infotexts[0])
 
         #Todo add checks to make sure an image propertly displayed
 
-        #Package all info into to be voted on later
-        global contestList
-        contestList.append(Contest(keywordList[0:2], groups, grid))
-        keywordList.pop(0)
-        keywordList.pop(0)
-
-        
         state = "ready" #allows rating buttons to work
 
         if opts.grid_save:

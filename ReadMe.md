@@ -1,3 +1,8 @@
+# Most recent updates
+I'm not going to put much effort into updating the readme until I'm further along or I notice others are using this or wanting to collaborate. Anything below this section hasn't been updated, but here are the big changes: after generating (you can use batch size > 1 now), the images will go into a queue. Click Next Image in Queue button to see the first image in the Queue on the left side of the screen and then rate it by clicking Vote Left, Can't Decide, or Vote Right. Then click next image in queue to view the next image and repeat. You can also make consecutive generations and they will correctly go into the queue. I haven't tested this on other monitors or with image sizes larger than 512x512 -- not sure if Gradio could misbehave under different parameters.
+
+
+
 This is unfinished and cobbled together by someone who doesn't know what they're doing. Use at your own risk. It currently works well if generation parameters are left at default. I haven't done much data validation yet, so leave batch count and batch size at 1 and type things carefully. There's a lot I don't yet know about Python and how Automatic1111 and gradio work, and the resulting code is egregious, even by my standards.
 
 # Using SDRatings
@@ -31,8 +36,7 @@ Something to keep in mind: if we introduce new keywords to the population and re
 - More configurability for elo constants, especially to help fresh keywords and tags find their rating. 
 - Let keywords be inserted into negative prompts. 
 - Add more messaging to the user through Automatic1111's interface instead of through cmd line
-- Add a gradio image near the vote buttons. As user generates images using the generate button, add the processed grids to a Queue that will feed into the new gradio image. This way you can generate a large batch of images and then come back and rate them back to back without waiting for images to generate.
-- Add ways to add/remove keywords and groups
+- Add ways to add/remove keywords and groups from within gradio
 - Change all instances of group/groups to tag/tags, which might be a more intuitive name
 - Have different modes for comparison. Instead of always assigning opponents randomly, have a mode for sorted list. 
   - Randomized (current setting) is good for keywords that are vastly underrated or overrated, but using a sorted list or +- 400 rating points would generally be better.
@@ -43,4 +47,4 @@ Something to keep in mind: if we introduce new keywords to the population and re
 - Give credit to the right wildcards script and provide a link. Or upgrade to the newest one if it has more functionality.
 - Think about case where one group's is a subset of another group's name
 - Output a csv with keywords and tags that can be sorted and/or maybe just a sorted txt file with one keyword + 1 tag
-- Think about how to incorporate batch count/sizes if at all. Could at least use batch sizes to speed up generation. 
+- Think about how to incorporate batch size if at all. Could at least use batch counts to speed up generation. 
