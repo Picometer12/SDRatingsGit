@@ -21,9 +21,69 @@ oldInputs = ["", ""] #used to see if settings have changed
 eloScale = 32 #used in elo algorithm. This is the max change in elo rating. 
 useNewcomerEloMultiplier = True
 
+
+
 #used in displaying the images that need to be rated, separate from generation image area
 #imagesToRate = [] #move this into contest?
+contestantList = []
 contestList = []
+
+class Tag():
+    def __init__(self, tagString):
+        self.tagString = tagString
+        self.tagName = "undefined"
+        self.rating = 1500
+        self.timesRated = 0
+
+    # Overall:1556:1, but second or third element could be missing
+    def unpack(self):
+        tagStringList = self.tagString.split(":")
+        self.tagName = tagStringList[0]
+
+        if len(tagStringList) > 1:
+            self.rating = int(tagStringList[1])
+
+        if len(tagStringList) > 2:
+            self.timesRated = int(tagStringList[2])
+
+class Contestant():
+    def __init__(self, dataString):
+        self.dataString = dataString.strip()
+        self.keyword = "notDefined"
+        self.tags = []
+    
+    #copied from getElo. Can probably make getElo obsolete after refactor
+    #string in format: Anton Fadeev(Overall:1556:1, ConceptArtist:1500)
+    def unpack(self):
+        self.keyword = self.dataString.split("(")[0]
+        
+        tagsString = self.dataString.split("(")[1]  #Overall:1556:1, ConceptArtist:1500)
+        tagsString = tagsString[:-1]                   #Overall:1556:1, ConceptArtist:1500
+        tagStringList = tagsString.split(",")
+
+        for tag in tagStringList:
+            self.tags.append(Tag(tag))
+            self.tags[-1].unpack()
+
+        #groupString = line.split("(")[1]
+        #groupList = groupString.split(",")
+                        
+        #data is in the form groupName:1500 or groupName:1500:2
+        #for grp in groupList:
+        #    if group in grp:
+        #        return grp.split(":",1)[1]
+    
+
+
+    def repack(self):
+        newString = ""
+        newString += self.keyword + "("
+        for tag in self.tags:
+            newString += tag.tagName + ":"
+            newString += tag.rating + ":"
+            newString += tag.timesRated + ")"
+        return newString
+            
 
 #Generation and voting will not occur together. Pack all information that we need to vote into each Contest.
 class Contest():
@@ -325,6 +385,8 @@ class Script(scripts.Script):
         gr.Markdown(" <br/> ") 
         
         with gr.Row():
+            modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random"], value = "Similar")
+            similarMethodDropdown = gr.Dropdown(label = "Similar Algorithm", choices = ["Random", "High to Low", "Low to High", "Lowest Times Rated"], value = "Random")
             keywordGroups = gr.Textbox(label="Rated Groups - each of these tags will be rated", value = "Overall,RealisticArtist")
             unratedGroups = gr.Textbox(label="Unrated Groups - used as filter but will not be rated ", value = "")
 
@@ -342,7 +404,7 @@ class Script(scripts.Script):
         gr.Markdown(" <br/> ") 
 
         number_of_comparisons = gr.Textbox(label="Number of Images per keyword (integer)", value = 3)
-        eloScaleInput = gr.Slider(label = "Max elo change. Even ratings will occur by half this amount. Not recommended to change.", minimum = 32, maximum = 50, value = 32, )
+        eloScaleInput = gr.Slider(label = "Max elo change. Even ratings will occur by half this amount. Not recommended to change.", minimum = 16, maximum = 100, value = 32, )
         
         with gr.Row():
             useNewcomerEloMultiplierInput = gr.Checkbox(label = "Increase eloScale by up to 5 for tags with few ratings.", value = True)
@@ -351,9 +413,9 @@ class Script(scripts.Script):
     
         #different_seeds = gr.Checkbox(label='Use different seed for each picture', value=False)
 
-        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids ]
+        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown ]
 
-    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids):
+    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown):
         modules.processing.fix_seed(p)
 
         global state, eloScale, useNewcomerEloMultiplier
@@ -380,7 +442,86 @@ class Script(scripts.Script):
                         return random.choice(f.read().splitlines())
             return chunk
 
+        #probably should refactor and just use Contestant List, but let's make sure this works first
         def populateKeywordList():
+            for contestant in contestantList:
+                keywordList.append(contestant.keyword)
+
+
+        def populateContestantList():
+            #keyword = []
+            global contestantList
+
+            file_dir = os.path.dirname(os.path.realpath("__file__"))
+            read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")
+            
+            if os.path.exists(read_file):
+                with open(read_file, 'r') as f:
+                    #if a line contains all specified groups, return keyword from format keyword(group1, group2,...)
+                    for line in f.read().splitlines():
+                        keep = True
+                        for group in groups + unratedGroupList:
+                            if group not in line:
+                                keep = False
+                        
+                        if keep:
+                            tagStrings = []
+                            #contestantList.append(Contestant(line))
+                            thisContestant = Contestant(line)
+                            thisContestant.unpack()
+
+                            #move the first tag specified to the front for sorting purposes
+                            tagIndex = 0
+                            for i in range(len(thisContestant.tags)):
+                                if thisContestant.tags[i].tagName == groups[0]:
+                                    tagIndex = i
+
+                            thisContestant.tags.insert(0, thisContestant.tags.pop(tagIndex))
+                            
+                            contestantList.append(thisContestant)
+
+                #similarMethodDropdown = gr.Dropdown(label = "Similar Algorithm", choices = ["Random", "High to Low", "Low to High", "Lowest Times Rated"], value = "Random")
+                if modeDropdown == "Similar":
+                    #sorted low to high
+                    contestantList.sort(key=lambda x: x.tags[0].rating)
+
+                    if similarMethodDropdown == "High to Low":
+                        contestantList.reverse()
+                    elif similarMethodDropdown == "Random":
+                        #make even by duplicating one contestant
+                        if len(contestantList) % 2 == 1:
+                            contestantList.append(contestantList[-2])
+                        
+                        #pick a random number from 0 to length - 1. Grab i and i+1. Now pick  a random number from 2 to length - 1...
+                        lastIndex = len(contestantList) - 2 
+                        for i in range(0, len(contestantList)-2, 2):
+                            randomIndex = random.randrange(i, lastIndex, 2)
+                            contestantList.insert(i,contestantList.pop(randomIndex))
+                            contestantList.insert(i + 1,contestantList.pop(randomIndex + 1))
+                    elif similarMethodDropdown == "Lowest Times unratedGroupList Rated":
+                        doNothing = "okay" #there's work to do
+                    else: #sorted low to high already, don't do anything
+                        doNothing = "okay" #already handled
+
+                else:          
+                    #ModeDropdown == "Random"
+                    random.shuffle(contestantList)
+
+
+                    #Todo: algorithm for lowest times rated can be: after sorting by elo (1) determine lowest (make a list of unique counts so you can skip if needed) 
+                    #(2) seek the lowest and grab them and the neighbor, repeat for full length of list. Then repeat fo
+                    '''
+                    if startingPointDropdown == "Random":
+                        #pick a random place to cut the List
+                    else: #startingPointDropdown == "Lowest TimesRated
+                    '''
+            #Reminders:                     
+            #modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random"], value = "Similar")
+            #startingPointDropdown = gr.Dropdown(label = "Starting Point", choices = ["Random", "Lowest Times Rated"], value = "Random")
+        
+        
+        
+        def populateKeywordListOld():
             keywords = []
             
             file_dir = os.path.dirname(os.path.realpath("__file__"))
@@ -422,7 +563,8 @@ class Script(scripts.Script):
         #Todo: Change logic and move into the for loop so that you can loop around if batch count is high
         #Todo: do something here if you ever use batch size
         if len(keywordList) < 2 * p.n_iter or newSettings:
-            keywordList = populateKeywordList()
+            populateContestantList()
+            populateKeywordList()
             if len(keywordList) < 2:               
                 #keyword1 = "defaulta"
                 #keyword2 = "defaultb"
