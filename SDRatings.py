@@ -343,13 +343,17 @@ class Script(scripts.Script):
 
         number_of_comparisons = gr.Textbox(label="Number of Images per keyword (integer)", value = 3)
         eloScaleInput = gr.Slider(label = "Max elo change. Even ratings will occur by half this amount. Not recommended to change.", minimum = 32, maximum = 50, value = 32, )
-        useNewcomerEloMultiplierInput = gr.Checkbox(label = "Increase eloScale by up to 5 for tags with few ratings.", value = True)
+        
+        with gr.Row():
+            useNewcomerEloMultiplierInput = gr.Checkbox(label = "Increase eloScale by up to 5 for tags with few ratings.", value = True)
+            displayGrids = gr.Checkbox(label = "Display Grids in generation output (slows down conclusion for large batch count)", value = False)
+
     
         #different_seeds = gr.Checkbox(label='Use different seed for each picture', value=False)
 
-        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput ]
+        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids ]
 
-    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput):
+    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids):
         modules.processing.fix_seed(p)
 
         global state, eloScale, useNewcomerEloMultiplier
@@ -426,6 +430,10 @@ class Script(scripts.Script):
 
         original_prompt = p.prompt[0] if type(p.prompt) == list else p.prompt
 
+        #add keyword at the start of prompt if not present already
+        if ("keyword" not in original_prompt):
+            original_prompt = "keyword " + original_prompt
+
         #Todo: figure out what to do with batch size if anything
         wildcard_prompts = ["".join(replace_wildcard(chunk) for chunk in original_prompt.split("__")) for _ in range(p.n_iter * number_of_comparisons)]
 
@@ -452,22 +460,28 @@ class Script(scripts.Script):
         # grid = images.image_grid(processed.images, p.batch_size, rows=1 << ((len(prompt_matrix_parts) - 1) // 2))
         # grid = images.draw_prompt_matrix(grid, p.width, p.height, prompt_matrix_parts)
         #print ("Length of all_prompts" + strlen(all_prompts))
-        for i in all_prompts:
-            print(i)
-      
+        
         for i in range(len(all_prompts) // 2 // number_of_comparisons):
-            #the strange seeming +i are due to ineserting near the start every loop and making one longer
-            grid = images.image_grid(processed.images[i * 6 + i : i * 6 + 6 + i ], p.batch_size, rows=number_of_comparisons)
+            if displayGrids:
+                gridBuffer = i
+            else:
+                gridBuffer = 0
             
-            processed.images.insert(i, grid) #Package all info into to be voted on later
+            grid = images.image_grid(processed.images[i * 6 + gridBuffer : i * 6 + 6 + gridBuffer ], p.batch_size, rows=number_of_comparisons)
             
+            if displayGrids:
+                processed.images.insert(i, grid) #Package all info into to be voted on later
+                processed.infotexts.insert(i, processed.infotexts[6*i + i ]) 
+
             #To do: put in "(vs keywordList[1]) or something like that in the info text?
-            processed.infotexts.insert(i, processed.infotexts[6*i + i ]) 
             contestList.append(Contest(keywordList[0:2], groups, grid))
             keywordList.pop(0)
             keywordList.pop(0)
 
-        processed.index_of_first_image = i
+        if displayGrids:
+            processed.index_of_first_image = i
+        else:
+            processed.index_of_first_image = 0
 
         #Todo get labels to behave -- or maybe not, so ratings are unbiased. Could add check box
         #grid = images.draw_prompt_matrix(grid, p.width, p.height, all_prompts)
