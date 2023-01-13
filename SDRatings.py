@@ -25,8 +25,14 @@ useNewcomerEloMultiplier = True
 
 #used in displaying the images that need to be rated, separate from generation image area
 #imagesToRate = [] #move this into contest?
+
 contestantList = []
 contestList = []
+
+#Allows fetching of single images
+singleImageQueue = []
+singleImageIndex = -1
+firstPushSinceEmpty = True; #set to true whenever the singleImageQueue is empty so that the next button push doesn't delete the single images in queue
 
 class Tag():
     def __init__(self, tagString):
@@ -133,7 +139,7 @@ def voteLeft():
     if state == "ready":
         results = ratingAdjust("left")
         state = "rated"
-        contestList.pop(0)
+        #contestList.pop(0)
         return results
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
@@ -148,7 +154,7 @@ def voteRight():
     if state == "ready":
         results = ratingAdjust("right")
         state = "rated"
-        contestList.pop(0)
+        #contestList.pop(0)
         return results
     elif state == "noComparison":
         raise gr.Error("Nothing to rate, generate images first")
@@ -170,7 +176,7 @@ def doOver():
             leftMessage += group + ": " + getElo(contestList[0].keywords[0], group).split(":")[0] +", "
             rightMessage += group + ": " + getElo(contestList[0].keywords[1], group).split(":")[0] +", "
 
-        contestList.pop(0)
+        #contestList.pop(0)
         return [leftMessage, rightMessage]
         
     elif state == "noComparison":
@@ -185,13 +191,83 @@ def doOver():
 
 
 def getImageforUI():
-    global state
+    global state, singleImageIndex, firstPushSinceEmpty
     if len(contestList) > 0:
         state = "ready"
+
+        if not firstPushSinceEmpty:
+            contestList.pop(0)
+            del singleImageQueue[:6]
+            if len(singleImageQueue) == 0:
+                firstPushSinceEmpty = True
+        else:
+            firstPushSinceEmpty = False
+        singleImageIndex = -1
         return contestList[0].grid
     else:
         raise gr.Error("No images in queue. Try generating images or maybe something has gone wrong.")
  
+def cycleSingleImages():
+    global singleImageIndex
+    singleImageIndex += 1
+
+    if singleImageIndex == 6:
+        singleImageIndex = -1
+        return contestList[0].grid
+    else:
+        return singleImageQueue[singleImageIndex] 
+
+def removeTagLeft(tag):
+    RemoveTag(tag, contestList[0].keywords[0])
+
+def removeTagRight(tag):
+    RemoveTag(tag, contestList[0].keywords[1])
+
+def RemoveTag(tag, keyword):
+    file_dir = os.path.dirname(os.path.realpath("__file__"))
+    read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
+    if os.path.exists(read_file):
+        with open(read_file, 'r') as f:
+            #I'm sure there's a better way to do this than opening and closing in different modes
+            replacedContent = ""
+                
+            #lines are in format Anton Fadeev(Overall:1500, ConceptArtists:1500)
+            for line in f.read().strip().splitlines():
+                #line = line.strip()
+
+                if keyword in line:
+                    #remove the parentheses on the end
+                    line = line[:-1]
+                    #add the keyword back in 
+                    replacedContent += line.split("(")[0] + "("
+
+                    groupString = line.split("(")[1]
+                    groupList = groupString.split(",")
+
+                    #grp in form Overall:1500:1 if has been updated. Could be Overall:1500 in else
+                    for grp in groupList:
+                        if tag in grp:
+                            #empty string
+                            replacedContent += ""
+
+                        else:
+                            replacedContent += grp + ","
+
+                    #remove the extra comma and add a ) and new line.
+                    replacedContent = replacedContent[:-1] + ")\n" 
+                else:
+                    replacedContent += line + "\n"
+                            
+            f.close()
+            replacedContent.strip()
+                    
+        with open(read_file, 'w') as f:
+            f.writelines(replacedContent)
+            f.close()
+
+
+
+
     #Moved from ratingAdjust -- shouldn't be a problem?
 #could do all groups at once, but I've already written this for one so let's just call it multiple times
 def getElo(keyword, group):
@@ -359,10 +435,12 @@ class Script(scripts.Script):
         
         gr.Markdown(" Vote for the left or right keyword after image generation") #add some vertical white space
         with gr.Row():
+            fetch_image_button = gr.Button(value = "Cycle images")
             left_wins = gr.Button(value = "Vote Left")
             cant_decide = gr.Button(value = "Can't Decide")
             right_wins = gr.Button(value = "Vote Right")
             next_image = gr.Button(value = "Next Image in Queue")
+            
 
         gr.Markdown(" <br/> ") 
 
@@ -378,6 +456,7 @@ class Script(scripts.Script):
         cant_decide.click(doOver, outputs = [leftResultsTextUI, rightResultsTextUI])
         right_wins.click(voteRight, outputs = [leftResultsTextUI, rightResultsTextUI])
         next_image.click(fn = getImageforUI, outputs = ratingImageUI )
+        fetch_image_button.click(fn = cycleSingleImages, outputs = ratingImageUI)
 
         gr.Markdown(" <br/> ") #add some vertical white space
         
@@ -387,11 +466,11 @@ class Script(scripts.Script):
         with gr.Row():
             modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random"], value = "Similar")
             similarMethodDropdown = gr.Dropdown(label = "Similar Algorithm", choices = ["Random", "High to Low", "Low to High", "Lowest Times Rated"], value = "Random")
-            keywordGroups = gr.Textbox(label="Rated Groups - each of these tags will be rated", value = "Overall,RealisticArtist")
+            keywordGroups = gr.Textbox(label="Rated Groups - each of these tags will be rated ", value = "Overall")
             unratedGroups = gr.Textbox(label="Unrated Groups - used as filter but will not be rated ", value = "")
 
         
-        gr.Markdown("(Not functional yet.) Remove an unwanted tag here after image generation.  ") #add some vertical white space
+        gr.Markdown("(Not functional yet.) Remove an unwanted tag here. Use between voting and Next Image.  ")
         gr.Markdown(" <br/> ") 
 
         #Todo: Not functioning yet
@@ -400,22 +479,27 @@ class Script(scripts.Script):
             removeTagLeftButton = gr.Button(value = "Remove from left keyword")
             removeTagRightButton = gr.Button(value = "Remove from right keyword")
 
+        removeTagLeftButton.click(removeTagLeft, inputs = [removeTagInput])
+        removeTagRightButton.click(removeTagRight, inputs = [removeTagInput])
+
         gr.Markdown("Miscellaneous Settings ") #add some vertical white space
         gr.Markdown(" <br/> ") 
 
         number_of_comparisons = gr.Textbox(label="Number of Images per keyword (integer)", value = 3)
-        eloScaleInput = gr.Slider(label = "Max elo change. Even ratings will occur by half this amount. Not recommended to change.", minimum = 16, maximum = 100, value = 32, )
+        eloScaleInput = gr.Slider(label = "Max elo change. Matching ratings will change by half this amount.", minimum = 16, maximum = 100, value = 32, step = 1)
         
-        with gr.Row():
-            useNewcomerEloMultiplierInput = gr.Checkbox(label = "Increase eloScale by up to 5 for tags with few ratings.", value = True)
-            displayGrids = gr.Checkbox(label = "Display Grids in generation output (slows down conclusion for large batch count)", value = False)
+        
+        useNewcomerEloMultiplierInput = gr.Checkbox(label = "Boost elo change for new tags.", value = True)
+        displayGrids = gr.Checkbox(label = "Display Grids in generation output (slows down conclusion for large batch count)", value = False)
+        enableImageFetch = gr.Checkbox(label = "Enable single image fetcher", value = True)
+
 
     
         #different_seeds = gr.Checkbox(label='Use different seed for each picture', value=False)
 
-        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown ]
+        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch ]
 
-    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown):
+    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch):
         modules.processing.fix_seed(p)
 
         global state, eloScale, useNewcomerEloMultiplier
@@ -489,6 +573,8 @@ class Script(scripts.Script):
                         contestantList.reverse()
                     elif similarMethodDropdown == "Random":
                         #make even by duplicating one contestant
+
+                        #Todo: I got a duplicate. How? (keyword vs same keyword)
                         if len(contestantList) % 2 == 1:
                             contestantList.append(contestantList[-2])
                         
@@ -595,7 +681,11 @@ class Script(scripts.Script):
         p.seed = [p.seed + (i / 2) for i in range(len(all_prompts))]
         p.prompt_for_display = original_prompt
         processed = process_images(p)
-        print("Length of Processed:.images " + str(len(processed.images)))
+        
+        if (enableImageFetch):
+            global singleImageQueue
+            for image in processed.images:
+                singleImageQueue.append(image)
 
         global contestList
 
