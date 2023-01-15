@@ -257,7 +257,12 @@ def RemoveTag(tag, keyword, filename):
                                 replacedContent += grp + ","
 
                         #remove the extra comma and add a ) and new line.
-                        replacedContent = replacedContent[:-1] + ")\n" 
+                        #if list there are no tags left, there will not be a comma, so check for comma
+                        if (replacedContent[-1] == ','):
+                            replacedContent = replacedContent[:-1]
+                        replacedContent += ")\n"
+
+                        
                     else:
                         replacedContent += line + "\n"
                             
