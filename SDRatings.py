@@ -93,10 +93,11 @@ class Contestant():
 
 #Generation and voting will not occur together. Pack all information that we need to vote into each Contest.
 class Contest():
-    def __init__(self, keywords, contestGroups, grid):
+    def __init__(self, keywords, contestGroups, grid, filename):
         self.keywords = keywords
         self.contestGroups = contestGroups
         self.grid = grid
+        self.filename = filename
 
 
 def draw_xy_grid(xs, ys, x_label, y_label, cell):
@@ -173,8 +174,8 @@ def doOver():
         
         for group in contestList[0].contestGroups:
             #leftMessage += f"{group}: {getElo(contestList[0].keywords[0], group).split(":")[0] } , "
-            leftMessage += group + ": " + getElo(contestList[0].keywords[0], group).split(":")[0] +", "
-            rightMessage += group + ": " + getElo(contestList[0].keywords[1], group).split(":")[0] +", "
+            leftMessage += group + ": " + getElo(contestList[0].keywords[0], group, contestList[0].filename).split(":")[0] +", "
+            rightMessage += group + ": " + getElo(contestList[0].keywords[1], group, contestList[0].filename).split(":")[0] +", "
 
         #contestList.pop(0)
         return [leftMessage, rightMessage]
@@ -218,15 +219,15 @@ def cycleSingleImages():
         return singleImageQueue[singleImageIndex] 
 
 def removeTagLeft(tag):
-    RemoveTag(tag, contestList[0].keywords[0])
+    RemoveTag(tag, contestList[0].keywords[0], contestList[0].filename)
 
 def removeTagRight(tag):
-    RemoveTag(tag, contestList[0].keywords[1])
+    RemoveTag(tag, contestList[0].keywords[1], contestList[0].filename)
 
-def RemoveTag(tag, keyword):
+def RemoveTag(tag, keyword, filename):
     if tag != "":
         file_dir = os.path.dirname(os.path.realpath("__file__"))
-        read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
+        read_file = os.path.join(file_dir, f"scripts/SDRatings/{filename}.txt")    
         if os.path.exists(read_file):
             with open(read_file, 'r') as f:
                 #I'm sure there's a better way to do this than opening and closing in different modes
@@ -274,9 +275,9 @@ def RemoveTag(tag, keyword):
 
     #Moved from ratingAdjust -- shouldn't be a problem?
 #could do all groups at once, but I've already written this for one so let's just call it multiple times
-def getElo(keyword, group):
+def getElo(keyword, group, filename):
     file_dir = os.path.dirname(os.path.realpath("__file__"))
-    read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
+    read_file = os.path.join(file_dir, f"scripts/SDRatings/{filename}.txt")    
     if os.path.exists(read_file):
         with open(read_file, 'r') as f:
                 
@@ -308,9 +309,9 @@ def ratingAdjust(txtWinner):
     #Todo: If this is slow, try to save something in the getElo method that will help us SetElo faster
     #I'm guessing this sort of thing is not slow on this scale
 
-    def setElo(keyword, group, newElo, timesRated):
+    def setElo(keyword, group, newElo, timesRated, filename):
         file_dir = os.path.dirname(os.path.realpath("__file__"))
-        read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
+        read_file = os.path.join(file_dir, f"scripts/SDRatings/{filename}.txt")    
         if os.path.exists(read_file):
             with open(read_file, 'r') as f:
                 
@@ -386,8 +387,8 @@ def ratingAdjust(txtWinner):
     for group in contestList[0].contestGroups:
         #get elo returns in format "keyword" or "keyword:1"
         
-        eloRatingChunks1.append(getElo(contestList[0].keywords[0], group).split(":"))
-        eloRatingChunks2.append(getElo(contestList[0].keywords[1], group).split(":"))
+        eloRatingChunks1.append(getElo(contestList[0].keywords[0], group, contestList[0].filename ).split(":"))
+        eloRatingChunks2.append(getElo(contestList[0].keywords[1], group, contestList[0].filename).split(":"))
 
         originalElos1.append(int(eloRatingChunks1[i][0]))
         originalElos2.append(int(eloRatingChunks2[i][0]))
@@ -416,8 +417,8 @@ def ratingAdjust(txtWinner):
         timesRated1[i] += 1
         timesRated2[i] += 1
 
-        setElo(contestList[0].keywords[0], group, newElos1[i], timesRated1[i])
-        setElo(contestList[0].keywords[1], group, newElos2[i], timesRated2[i])
+        setElo(contestList[0].keywords[0], group, newElos1[i], timesRated1[i], contestList[0].filename)
+        setElo(contestList[0].keywords[1], group, newElos2[i], timesRated2[i], contestList[0].filename)
 
         
         #print(contestList[0].keywords[0] + ":" + group + " changed from " + str(originalElos1[i]) + " to " + str(newElos1[i])) 
@@ -467,16 +468,19 @@ class Script(scripts.Script):
         gr.Markdown("Fill this out before image generation. ") #add some vertical white space
         gr.Markdown(" <br/> ") 
         
+        with gr.Row(): 
+            #Todo: resetQueueCheckbox is a temporary solution. Create a better, more intuitive flow for resetting the queue, especially when changing modes. 
+            resetQueueCheckbox = gr.Checkbox(label = "Reset Queues", value = True)
+            fileNameTextbox = gr.Textbox(label="Name of txt file in SDRatings, exclude .txt ", value = "SDRatings")
+            keywordGroups = gr.Textbox(label="Rated Groups - each of these tags will be rated ", value = "Overall")
+            unratedGroups = gr.Textbox(label="Unrated Groups - used as filter but will not be rated ", value = "")
+
         with gr.Row():
             modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random", "Quickrate"], value = "Similar")
             similarMethodDropdown = gr.Dropdown(label = "Similar Algorithm", choices = ["Random", "High to Low", "Low to High", "Lowest Times Rated"], value = "Random")
             keywordForQuickRate = gr.Textbox(label="Keyword for Quickrate")
 
-        with gr.Row(): 
-            #Todo: resetQueueCheckbox is a temporary solution. Create a better, more intuitive flow for resetting the queue, especially when changing modes. 
-            resetQueueCheckbox = gr.Checkbox(label = "Reset Queues", value = True)
-            keywordGroups = gr.Textbox(label="Rated Groups - each of these tags will be rated ", value = "Overall")
-            unratedGroups = gr.Textbox(label="Unrated Groups - used as filter but will not be rated ", value = "")
+        
 
         
         gr.Markdown("(Not functional yet.) Remove an unwanted tag here. Use between voting and Next Image.  ")
@@ -506,9 +510,9 @@ class Script(scripts.Script):
     
         #different_seeds = gr.Checkbox(label='Use different seed for each picture', value=False)
 
-        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox ]
+        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox, fileNameTextbox ]
 
-    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox):
+    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox, fileNameTextbox):
         modules.processing.fix_seed(p)
 
         global state, eloScale, useNewcomerEloMultiplier
@@ -550,7 +554,7 @@ class Script(scripts.Script):
             quickContestant = Contestant("default")
 
             file_dir = os.path.dirname(os.path.realpath("__file__"))
-            read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")
+            read_file = os.path.join(file_dir, f"scripts/SDRatings/{fileNameTextbox}.txt")
             
             if os.path.exists(read_file):
                 with open(read_file, 'r') as f:
@@ -723,7 +727,7 @@ class Script(scripts.Script):
                 processed.infotexts.insert(i, processed.infotexts[6*i + i ]) 
 
             #To do: put in "(vs keywordList[1]) or something like that in the info text?
-            contestList.append(Contest(keywordList[0:2], groups, grid))
+            contestList.append(Contest(keywordList[0:2], groups, grid, fileNameTextbox))
             keywordList.pop(0)
             keywordList.pop(0)
 
