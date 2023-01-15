@@ -224,46 +224,50 @@ def removeTagRight(tag):
     RemoveTag(tag, contestList[0].keywords[1])
 
 def RemoveTag(tag, keyword):
-    file_dir = os.path.dirname(os.path.realpath("__file__"))
-    read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
-    if os.path.exists(read_file):
-        with open(read_file, 'r') as f:
-            #I'm sure there's a better way to do this than opening and closing in different modes
-            replacedContent = ""
+    if tag != "":
+        file_dir = os.path.dirname(os.path.realpath("__file__"))
+        read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")    
+        if os.path.exists(read_file):
+            with open(read_file, 'r') as f:
+                #I'm sure there's a better way to do this than opening and closing in different modes
+                replacedContent = ""
                 
-            #lines are in format Anton Fadeev(Overall:1500, ConceptArtists:1500)
-            for line in f.read().strip().splitlines():
-                #line = line.strip()
+                #lines are in format Anton Fadeev(Overall:1500, ConceptArtists:1500)
+                for line in f.read().strip().splitlines():
+                    #line = line.strip()
 
-                if keyword in line:
-                    #remove the parentheses on the end
-                    line = line[:-1]
-                    #add the keyword back in 
-                    replacedContent += line.split("(")[0] + "("
+                    if keyword in line:
+                        #remove the parentheses on the end
+                        line = line[:-1]
+                        #add the keyword back in 
+                        replacedContent += line.split("(")[0] + "("
 
-                    groupString = line.split("(")[1]
-                    groupList = groupString.split(",")
+                        groupString = line.split("(")[1]
+                        groupList = groupString.split(",")
 
-                    #grp in form Overall:1500:1 if has been updated. Could be Overall:1500 in else
-                    for grp in groupList:
-                        if tag in grp:
-                            #empty string
-                            replacedContent += ""
+                        #grp in form Overall:1500:1 if has been updated. Could be Overall:1500 in else
+                        for grp in groupList:
+                            if tag in grp:
+                                #empty string
+                                print(grp + " removed from " + keyword + ". Before:" + line )
+                                replacedContent += ""
 
-                        else:
-                            replacedContent += grp + ","
+                            else:
+                                replacedContent += grp + ","
 
-                    #remove the extra comma and add a ) and new line.
-                    replacedContent = replacedContent[:-1] + ")\n" 
-                else:
-                    replacedContent += line + "\n"
+                        #remove the extra comma and add a ) and new line.
+                        replacedContent = replacedContent[:-1] + ")\n" 
+                    else:
+                        replacedContent += line + "\n"
                             
-            f.close()
-            replacedContent.strip()
+                f.close()
+                replacedContent.strip()
                     
-        with open(read_file, 'w') as f:
-            f.writelines(replacedContent)
-            f.close()
+            with open(read_file, 'w') as f:
+                f.writelines(replacedContent)
+                f.close()
+    else:
+        raise gr.Error("Empty string. Type a tag in field: Name of tag to be removed")
 
 
 
@@ -402,12 +406,12 @@ def ratingAdjust(txtWinner):
 
         if useNewcomerEloMultiplier:
             eloMultipliers1.append(max(1,int (5.5 - 0.5*timesRated1[i])))
-            eloMultipliers2.append(max(1,int (5.5 - 0.5*timesRated1[i])))
+            eloMultipliers2.append(max(1,int (5.5 - 0.5*timesRated2[i])))
 
         expectedLeftWinProb.append( 1/(1 + pow(10, (originalElos2[i] - originalElos1[i])/differenceParam)))
 
         newElos1.append(round(originalElos1[i] + eloScale*eloMultipliers1[i]*(winLeftBinary - expectedLeftWinProb[i])))
-        newElos2.append(round(originalElos2[i] - eloScale*eloMultipliers1[i]*(winLeftBinary - expectedLeftWinProb[i])))
+        newElos2.append(round(originalElos2[i] - eloScale*eloMultipliers2[i]*(winLeftBinary - expectedLeftWinProb[i])))
 
         timesRated1[i] += 1
         timesRated2[i] += 1
@@ -464,8 +468,13 @@ class Script(scripts.Script):
         gr.Markdown(" <br/> ") 
         
         with gr.Row():
-            modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random"], value = "Similar")
+            modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random", "Quickrate"], value = "Similar")
             similarMethodDropdown = gr.Dropdown(label = "Similar Algorithm", choices = ["Random", "High to Low", "Low to High", "Lowest Times Rated"], value = "Random")
+            keywordForQuickRate = gr.Textbox(label="Keyword for Quickrate")
+
+        with gr.Row(): 
+            #Todo: resetQueueCheckbox is a temporary solution. Create a better, more intuitive flow for resetting the queue, especially when changing modes. 
+            resetQueueCheckbox = gr.Checkbox(label = "Reset Queues", value = True)
             keywordGroups = gr.Textbox(label="Rated Groups - each of these tags will be rated ", value = "Overall")
             unratedGroups = gr.Textbox(label="Unrated Groups - used as filter but will not be rated ", value = "")
 
@@ -497,9 +506,9 @@ class Script(scripts.Script):
     
         #different_seeds = gr.Checkbox(label='Use different seed for each picture', value=False)
 
-        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch ]
+        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox ]
 
-    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch):
+    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox):
         modules.processing.fix_seed(p)
 
         global state, eloScale, useNewcomerEloMultiplier
@@ -508,6 +517,8 @@ class Script(scripts.Script):
         unratedGroupList = unratedGroups.split(",")
         eloScale = int(eloScaleInput)
         useNewcomerEloMultiplier = useNewcomerEloMultiplierInput
+
+        print ( keywordForQuickRate)
 
 
         for i in range(len(groups)):
@@ -529,12 +540,14 @@ class Script(scripts.Script):
         #probably should refactor and just use Contestant List, but let's make sure this works first
         def populateKeywordList():
             for contestant in contestantList:
+                #print(contestant.keyword + " added to keywordList")
                 keywordList.append(contestant.keyword)
 
 
         def populateContestantList():
             #keyword = []
             global contestantList
+            quickContestant = Contestant("default")
 
             file_dir = os.path.dirname(os.path.realpath("__file__"))
             read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")
@@ -553,6 +566,7 @@ class Script(scripts.Script):
                             #contestantList.append(Contestant(line))
                             thisContestant = Contestant(line)
                             thisContestant.unpack()
+ 
 
                             #move the first tag specified to the front for sorting purposes
                             tagIndex = 0
@@ -563,6 +577,11 @@ class Script(scripts.Script):
                             thisContestant.tags.insert(0, thisContestant.tags.pop(tagIndex))
                             
                             contestantList.append(thisContestant)
+
+                            if thisContestant.keyword == keywordForQuickRate.strip():
+                                print("QuickRate Match " + thisContestant.keyword)
+                                quickContestant = thisContestant
+
 
                 #similarMethodDropdown = gr.Dropdown(label = "Similar Algorithm", choices = ["Random", "High to Low", "Low to High", "Lowest Times Rated"], value = "Random")
                 if modeDropdown == "Similar":
@@ -589,9 +608,23 @@ class Script(scripts.Script):
                     else: #sorted low to high already, don't do anything
                         doNothing = "okay" #already handled
 
-                else:          
-                    #ModeDropdown == "Random"
+                elif modeDropdown == "Random":          
                     random.shuffle(contestantList)
+                else: # modeDropdown == "Quickrate":
+                    newList = []
+                    random.shuffle(contestantList)
+                    for i in range (0, len(contestantList)):
+                        if contestantList[i].keyword != quickContestant.keyword:
+                            if random.randint(0, 1) == 0:
+                                newList.append(contestantList[i])
+                                newList.append(quickContestant)
+                            else:
+                                newList.append(quickContestant)
+                                newList.append(contestantList[i])
+
+                    contestantList = newList
+
+
 
 
                     #Todo: algorithm for lowest times rated can be: after sorting by elo (1) determine lowest (make a list of unique counts so you can skip if needed) 
@@ -604,39 +637,13 @@ class Script(scripts.Script):
             #Reminders:                     
             #modeDropdown = gr.Dropdown(label = "Comparison Mode", choices = ["Similar", "Random"], value = "Similar")
             #startingPointDropdown = gr.Dropdown(label = "Starting Point", choices = ["Random", "Lowest Times Rated"], value = "Random")
-        
-        
-        
-        def populateKeywordListOld():
-            keywords = []
-            
-            file_dir = os.path.dirname(os.path.realpath("__file__"))
-            read_file = os.path.join(file_dir, f"scripts/SDRatings/SDRatings.txt")
-            
-            if os.path.exists(read_file):
-                with open(read_file, 'r') as f:
-                    #if a line contains all specified groups, return keyword from format keyword(group1, group2,...)
-                    for line in f.read().splitlines():
-                        keep = True
-                        for group in groups + unratedGroupList:
-                            if group not in line:
-                                keep = False
-                        
-                        if keep:
-                            keeper = line.split("(")[0]
-                            keeper = keeper.strip()
-                            keywords.append(keeper)
-                
-                    f.close()
-            random.shuffle(keywords)
 
-            return keywords
 
         #Don't know why I was having issues with Number instead of textbox, my workaround
         number_of_comparisons = int(number_of_comparisons)
 
         #global keyword1, keyword2, keywordList
-        global keywordList, oldInputs
+        global keywordList, oldInputs, contestantList, contestants
         
         #determine if settings have changed, record these settings to compare next time
         if oldInputs[0] == keywordGroups and oldInputs[1] == unratedGroups:
@@ -648,7 +655,11 @@ class Script(scripts.Script):
 
         #Todo: Change logic and move into the for loop so that you can loop around if batch count is high
         #Todo: do something here if you ever use batch size
-        if len(keywordList) < 2 * p.n_iter or newSettings:
+        #Todo: there something wrong between this logic and the called on functions causing images to sometimes be compared to themselves.
+        if len(keywordList) < 2 * p.n_iter or newSettings or resetQueueCheckbox:
+            contestantList = []
+            keywordList = []
+            
             populateContestantList()
             populateKeywordList()
             if len(keywordList) < 2:               
@@ -657,19 +668,24 @@ class Script(scripts.Script):
                 raise gr.Error("There aren't two or more keywords with the group")
 
         original_prompt = p.prompt[0] if type(p.prompt) == list else p.prompt
+        original_negative_prompt = p.negative_prompt[0] if type(p.negative_prompt) == list else p.negative_prompt
 
         #add keyword at the start of prompt if not present already
-        if ("keyword" not in original_prompt):
+        if ("keyword" not in original_prompt and "keyword" not in original_negative_prompt):
             original_prompt = "keyword " + original_prompt
 
         #Todo: figure out what to do with batch size if anything
         wildcard_prompts = ["".join(replace_wildcard(chunk) for chunk in original_prompt.split("__")) for _ in range(p.n_iter * number_of_comparisons)]
+        wildcard_negative_prompts = ["".join(replace_wildcard(chunk) for chunk in original_negative_prompt.split("__")) for _ in range(p.n_iter * number_of_comparisons)]
 
         all_prompts = []
+        all_negative_prompts = []
 
         for i in range(len(wildcard_prompts)):
             all_prompts.append(wildcard_prompts[i].replace("keyword", keywordList[2 * (i // number_of_comparisons)]))
             all_prompts.append(wildcard_prompts[i].replace("keyword", keywordList[2 * (i // number_of_comparisons) + 1]))
+            all_negative_prompts.append(wildcard_negative_prompts[i].replace("keyword", keywordList[2 * (i // number_of_comparisons)]))
+            all_negative_prompts.append(wildcard_negative_prompts[i].replace("keyword", keywordList[2 * (i // number_of_comparisons) + 1]))
         
         #Todo: do something if data is not valid
 
@@ -678,6 +694,7 @@ class Script(scripts.Script):
 
         print("all_prompts length : " + str(len(all_prompts)))
         p.prompt = all_prompts
+        p.negative_prompt = all_negative_prompts
         p.seed = [p.seed + (i / 2) for i in range(len(all_prompts))]
         p.prompt_for_display = original_prompt
         processed = process_images(p)
