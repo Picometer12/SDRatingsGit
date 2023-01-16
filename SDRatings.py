@@ -436,6 +436,59 @@ def ratingAdjust(txtWinner):
         i += 1
     return [leftResult, rightResult]
     
+def exportKeywords(tagName, fileName):
+    file_dir = os.path.dirname(os.path.realpath("__file__"))
+    read_file = os.path.join(file_dir, f"scripts/SDRatings/{fileName}.txt")
+
+    outputContestants = [];
+            
+    if os.path.exists(read_file):
+        with open(read_file, 'r') as f:
+            #if a line contains all specified groups, return keyword from format keyword(group1, group2,...)
+            for line in f.read().splitlines():
+                keep = True
+                if tagName not in line:
+                    keep = False
+                        
+                if keep:
+                    tagStrings = []
+                    #contestantList.append(Contestant(line))
+                    thisContestant = Contestant(line)
+                    thisContestant.unpack()
+
+                    #move the first tag specified to the front for sorting purposes
+                    tagIndex = 0
+                    for i in range(len(thisContestant.tags)):
+                        if thisContestant.tags[i].tagName == tagName:
+                            tagIndex = i
+
+                    thisContestant.tags.insert(0, thisContestant.tags.pop(tagIndex))      
+                    outputContestants.append(thisContestant)
+            f.close()
+        
+        outputContestants.sort(key=lambda x: x.tags[0].rating)
+        outputContestants.reverse()
+
+        file_dir = os.path.dirname(os.path.realpath("__file__"))
+        write_file = os.path.join(file_dir, f"scripts/SDRatings/Output_{tagName}.txt")
+        with open(write_file, 'w') as f:
+            for contestant in outputContestants:
+                firstTag = True
+                f.write(f"{contestant.keyword}(")
+                for t in contestant.tags:
+                    if firstTag:
+                        firstTag = False
+                    else:
+                        f.write(",")
+                    f.write(f"{t.tagName}:{t.rating}:{t.timesRated}")
+                f.write(")\n")
+            f.close()
+    else:
+        raise gr.Error("Couldn't read file -- check Name of txt file in SDRatings")
+
+
+
+
 
 class Script(scripts.Script):
     def title(self):
@@ -510,6 +563,14 @@ class Script(scripts.Script):
         useNewcomerEloMultiplierInput = gr.Checkbox(label = "Boost elo change for new tags.", value = True)
         displayGrids = gr.Checkbox(label = "Display Grids in generation output (slows down conclusion for large batch count)", value = False)
         enableImageFetch = gr.Checkbox(label = "Enable single image fetcher", value = True)
+
+        with gr.Row(): 
+            exportTag = gr.Textbox(label="Export txt file of keywords sorted by this tag")
+            exportButton = gr.Button(value = "Export txt")
+
+        exportButton.click(exportKeywords, inputs = [exportTag, fileNameTextbox])
+            
+            
 
 
     
