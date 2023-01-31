@@ -436,12 +436,13 @@ def ratingAdjust(txtWinner):
         i += 1
     return [leftResult, rightResult]
     
-def exportKeywords(tagName, fileName):
+def exportKeywords(tagName, exportType, fileName):
     file_dir = os.path.dirname(os.path.realpath("__file__"))
     read_file = os.path.join(file_dir, f"scripts/SDRatings/{fileName}.txt")
 
     outputContestants = [];
-            
+    
+    
     if os.path.exists(read_file):
         with open(read_file, 'r') as f:
             #if a line contains all specified groups, return keyword from format keyword(group1, group2,...)
@@ -468,20 +469,28 @@ def exportKeywords(tagName, fileName):
         
         outputContestants.sort(key=lambda x: x.tags[0].rating)
         outputContestants.reverse()
+        #"Keyword only", "Keyword:Rating", "All Ratings"]
 
         file_dir = os.path.dirname(os.path.realpath("__file__"))
         write_file = os.path.join(file_dir, f"scripts/SDRatings/Output_{tagName}.txt")
         with open(write_file, 'w') as f:
             for contestant in outputContestants:
                 firstTag = True
-                f.write(f"{contestant.keyword}(")
-                for t in contestant.tags:
-                    if firstTag:
-                        firstTag = False
-                    else:
-                        f.write(",")
-                    f.write(f"{t.tagName}:{t.rating}:{t.timesRated}")
-                f.write(")\n")
+                f.write(f"{contestant.keyword}")
+
+                if exportType == "All Ratings":
+                    for t in contestant.tags:
+                        if firstTag:
+                            f.write("(")
+                            firstTag = False
+                        else:
+                            f.write(",")
+                        f.write(f"{t.tagName}:{t.rating}:{t.timesRated}")
+                    f.write(")")
+                    
+                elif exportType == "Keyword:Rating":
+                    f.write(f":{contestant.tags[0].rating}")
+                f.write("\n")
             f.close()
     else:
         raise gr.Error("Couldn't read file -- check Name of txt file in SDRatings")
@@ -566,9 +575,10 @@ class Script(scripts.Script):
 
         with gr.Row(): 
             exportTag = gr.Textbox(label="Export txt file of keywords sorted by this tag")
+            exportType = gr.Dropdown(label = "Export includes...", choices = ["Keyword only", "Keyword:Rating", "All Ratings"], value = "Keyword only")
             exportButton = gr.Button(value = "Export txt")
 
-        exportButton.click(exportKeywords, inputs = [exportTag, fileNameTextbox])
+        exportButton.click(exportKeywords, inputs = [exportTag, exportType, fileNameTextbox])
             
             
 
@@ -745,9 +755,29 @@ class Script(scripts.Script):
             original_prompt = "keyword " + original_prompt
 
         #Todo: figure out what to do with batch size if anything
+        
+
         wildcard_prompts = ["".join(replace_wildcard(chunk) for chunk in original_prompt.split("__")) for _ in range(p.n_iter * number_of_comparisons)]
         wildcard_negative_prompts = ["".join(replace_wildcard(chunk) for chunk in original_negative_prompt.split("__")) for _ in range(p.n_iter * number_of_comparisons)]
 
+        #Handle cascading wildcards
+        doWildcard = True
+        wildcardDebugCounter = 0
+
+        while doWildcard and wildcardDebugCounter < 51:
+            wildcardDebugCounter += 1
+
+            if wildcardDebugCounter == 50:
+                raise gr.Error("Hit 50 loops. Do you have a neverending cascading wildcard?")
+
+
+            doWildcard = False
+            for i in range(0, len(wildcard_prompts)):
+                wildcard_prompts[i] = "".join(replace_wildcard(chunk) for chunk in wildcard_prompts[i].split("__"))
+                wildcard_negative_prompts[i] = "".join(replace_wildcard(chunk) for chunk in wildcard_negative_prompts[i].split("__"))
+                if "__" in wildcard_prompts[i] or "__" in wildcard_negative_prompts[i]:
+                    doWildCard = True
+                
         all_prompts = []
         all_negative_prompts = []
 
