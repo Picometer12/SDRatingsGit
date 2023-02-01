@@ -30,6 +30,9 @@ I used [this article](https://mattmazzola.medium.com/understanding-the-elo-ratin
 Something to keep in mind: if we introduce new keywords to the population and remove or stop rating the bad ones, 1500 will eventually become the average active keyword. As long as you keep ratings things, the best will be at the top, but it might be worth keeping in mind that a stale 2000 rating might be equivalent to a recently rated 1800.
 
 # To Do
+- Improve input handling for listeners - extra white space (including extra lines) or lack of white space (e "}{" vs "} {" ) will break it.
+  -Try to move this into a separate script, or combine with dynamic prompts
+- Make this work with dynamic prompts instead of just wildcards
 - Improve code quality if anyone ever wants to collaborate or contribute
 - More configurability for elo constants, especially to help fresh keywords and tags find their rating. 
 - Let keywords be inserted into negative prompts. 

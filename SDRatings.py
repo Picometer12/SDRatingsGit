@@ -571,6 +571,7 @@ class Script(scripts.Script):
         
         useNewcomerEloMultiplierInput = gr.Checkbox(label = "Boost elo change for new tags.", value = True)
         displayGrids = gr.Checkbox(label = "Display Grids in generation output (slows down conclusion for large batch count)", value = False)
+        allowListeners = gr.Checkbox(label = "Allow listeners to modify prompt ", value = True)
         enableImageFetch = gr.Checkbox(label = "Enable single image fetcher", value = True)
 
         with gr.Row(): 
@@ -586,9 +587,9 @@ class Script(scripts.Script):
     
         #different_seeds = gr.Checkbox(label='Use different seed for each picture', value=False)
 
-        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox, fileNameTextbox ]
+        return [ number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox, fileNameTextbox, allowListeners ]
 
-    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox, fileNameTextbox):
+    def run(self, p, number_of_comparisons, keywordGroups, unratedGroups, eloScaleInput, useNewcomerEloMultiplierInput, displayGrids, modeDropdown, similarMethodDropdown, enableImageFetch, keywordForQuickRate, resetQueueCheckbox, fileNameTextbox, allowListeners):
         modules.processing.fix_seed(p)
 
         global state, eloScale, useNewcomerEloMultiplier
@@ -597,6 +598,7 @@ class Script(scripts.Script):
         unratedGroupList = unratedGroups.split(",")
         eloScale = int(eloScaleInput)
         useNewcomerEloMultiplier = useNewcomerEloMultiplierInput
+        listeners = [] #put Listener objects in here
 
         print ( keywordForQuickRate)
 
@@ -622,6 +624,33 @@ class Script(scripts.Script):
             for contestant in contestantList:
                 #print(contestant.keyword + " added to keywordList")
                 keywordList.append(contestant.keyword)
+        
+        class Listener():
+            def __init__(self, name, posPrompt, negPrompt):
+                self.name = name
+                self.posPrompt = posPrompt
+                self.negPrompt = negPrompt
+
+        def populateListeners():
+            file_dir = os.path.dirname(os.path.realpath("__file__"))
+            read_file = os.path.join(file_dir, f"scripts/listeners/listeners.txt")
+            
+            if os.path.exists(read_file):
+                with open(read_file, 'r') as f:
+                    #if a line contains all specified groups, return keyword from format keyword(group1, group2,...)
+                    for line in f.read().splitlines():
+                        #remove the { and } on the ends
+                        line = line.strip()
+                        line = line[1:-1]
+
+                        # format is: {input1,input2,input3}{positive}{negative}
+                        names = line.split("}{")[0]
+                        positiveAddString = line.split("}{")[1]
+                        negativeAddString = line.split("}{")[2]
+
+                        for name in names.split(","):
+                            name = name.strip()
+                            listeners.append(Listener(name,positiveAddString,negativeAddString))                      
 
 
         def populateContestantList():
@@ -753,6 +782,15 @@ class Script(scripts.Script):
         #add keyword at the start of prompt if not present already
         if ("keyword" not in original_prompt and "keyword" not in original_negative_prompt):
             original_prompt = "keyword " + original_prompt
+        
+        #insert extra words into prompts based on listeners.txt
+        populateListeners()
+        if allowListeners:
+            for listener in listeners:
+                if (listener.name in original_prompt):
+                    original_prompt = listener.posPrompt + original_prompt
+                    original_negative_prompt = listener.negPrompt + original_negative_prompt
+
 
         #Todo: figure out what to do with batch size if anything
         

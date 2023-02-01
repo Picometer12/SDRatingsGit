@@ -1,0 +1,7 @@
+{Gustave Dore}{ }{grayscale}
+{Rembrandt}{ }{sepia monochrome : 0.5), }
+{Josephine Wall}{ }{oversaturated, }
+{Lovis Corinth}{ }{impressionism, }
+{Skottie Young}{ }{young, }
+{Ryan Church}{ }{church, }
+{Agnes Cecile, Conrad Roset, Carne Griffiths}{ }{messy ink blot, }
